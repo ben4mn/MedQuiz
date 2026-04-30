@@ -3,19 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "NODE_EXTRA_CA_CERTS=./certs.pem next dev",
+    "build": "NODE_EXTRA_CA_CERTS=./certs.pem next build",
+    "start": "NODE_EXTRA_CA_CERTS=./certs.pem next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "@elevenlabs/react": "^1.2.1",
+    "mammoth": "^1.12.0",
+    "markmap-lib": "^0.18.12",
+    "markmap-view": "^0.18.12",
     "next": "16.2.4",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
