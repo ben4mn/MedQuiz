@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 
-type Props = { sessionId: string };
+type Props = { studySetId: string };
 
 type Turn = { role: "user" | "agent"; text: string; at: number };
 
@@ -15,20 +15,33 @@ export default function VoiceQuiz(props: Props) {
   );
 }
 
-function VoiceQuizInner({ sessionId }: Props) {
+function VoiceQuizInner({ studySetId }: Props) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [struggles, setStruggles] = useState<
+    { topic: string; note: string }[]
+  >([]);
   const turnsRef = useRef<HTMLDivElement>(null);
+  const sessionStartRef = useRef<number | null>(null);
+  const turnsRefSnap = useRef<Turn[]>([]);
 
   const conversation = useConversation({
     onMessage: ({ source, message }: { source: string; message: string }) => {
       const role: Turn["role"] = source === "user" ? "user" : "agent";
       if (!message) return;
-      setTurns((t) => [...t, { role, text: message, at: Date.now() }]);
+      setTurns((t) => {
+        const next = [...t, { role, text: message, at: Date.now() }];
+        turnsRefSnap.current = next;
+        return next;
+      });
     },
     onError: (message: string) => {
       setError(message || "Voice session error");
+    },
+    onDisconnect: () => {
+      void persistTranscript();
     },
   });
 
@@ -40,15 +53,51 @@ function VoiceQuizInner({ sessionId }: Props) {
   const connected = conversation.status === "connected";
   const connecting = conversation.status === "connecting";
 
+  const persistTranscript = async () => {
+    const snapshot = turnsRefSnap.current;
+    if (snapshot.length === 0) return;
+    const startedAt = sessionStartRef.current;
+    const durationMs = startedAt ? Date.now() - startedAt : null;
+    setSaveState("saving");
+    try {
+      const resp = await fetch("/api/voice-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studySetId,
+          transcript: snapshot,
+          durationMs,
+        }),
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.error ?? `Save failed (${resp.status})`);
+      }
+      const data = (await resp.json()) as {
+        struggles: { topic: string; note: string }[];
+      };
+      setStruggles(data.struggles ?? []);
+      setSaveState("saved");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(msg);
+      setSaveState("idle");
+    }
+  };
+
   const start = async () => {
     if (connected || connecting || starting) return;
     setError(null);
     setStarting(true);
+    setSaveState("idle");
+    setStruggles([]);
+    setTurns([]);
+    turnsRefSnap.current = [];
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const resp = await fetch(
-        `/api/voice-token?sessionId=${encodeURIComponent(sessionId)}`,
+        `/api/voice-token?studySetId=${encodeURIComponent(studySetId)}`,
         { cache: "no-store" }
       );
       if (!resp.ok) {
@@ -57,16 +106,23 @@ function VoiceQuizInner({ sessionId }: Props) {
           body.error ?? `Voice token request failed (${resp.status})`
         );
       }
-      const { conversationToken, systemPromptOverride, firstMessage } =
-        (await resp.json()) as {
-          conversationToken: string;
-          systemPromptOverride: string;
-          firstMessage: string;
-        };
+      const {
+        conversationToken,
+        systemPromptOverride,
+        firstMessage,
+        dynamicVariables,
+      } = (await resp.json()) as {
+        conversationToken: string;
+        systemPromptOverride: string;
+        firstMessage: string;
+        dynamicVariables?: Record<string, string | number | boolean>;
+      };
 
+      sessionStartRef.current = Date.now();
       conversation.startSession({
         conversationToken,
         connectionType: "webrtc",
+        dynamicVariables,
         overrides: {
           agent: {
             prompt: { prompt: systemPromptOverride },
@@ -100,8 +156,10 @@ function VoiceQuizInner({ sessionId }: Props) {
           {conversation.status === "connecting" && "Connecting to agent..."}
           {connected && conversation.isSpeaking && "Agent is speaking..."}
           {connected && conversation.isListening && "Listening... speak naturally."}
-          {conversation.status === "disconnected" && !starting &&
+          {conversation.status === "disconnected" && !starting && saveState === "idle" &&
             "Tap the mic to start. You can interrupt the tutor any time."}
+          {saveState === "saving" && "Saving transcript..."}
+          {saveState === "saved" && "Session saved to your profile."}
         </p>
       </div>
 
@@ -111,6 +169,22 @@ function VoiceQuizInner({ sessionId }: Props) {
           className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
         >
           {error}
+        </div>
+      )}
+
+      {struggles.length > 0 && (
+        <div className="rounded-xl bg-[var(--accent-soft)] border border-[var(--accent)] p-4">
+          <p className="font-medium text-[var(--accent)] mb-2 text-sm">
+            Topics to revisit:
+          </p>
+          <ul className="space-y-1">
+            {struggles.map((s, i) => (
+              <li key={i} className="text-sm">
+                <span className="font-medium">{s.topic}:</span>{" "}
+                <span className="text-[var(--muted)]">{s.note}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

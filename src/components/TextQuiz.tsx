@@ -1,15 +1,45 @@
 "use client";
 
-import { useState } from "react";
-import type { QuizQuestion } from "@/lib/types";
+import { useRef, useState } from "react";
 
-type Props = { questions: QuizQuestion[] };
+export type QuizQuestion =
+  | {
+      id: string;
+      type: "mcq";
+      topic: string;
+      stem: string;
+      choices: { label: string; text: string }[];
+      correctLabel: string;
+      rationale: string;
+    }
+  | {
+      id: string;
+      type: "short";
+      topic: string;
+      stem: string;
+      correctAnswer: string;
+      rationale: string;
+    }
+  | {
+      id: string;
+      type: "recall";
+      topic: string;
+      stem: string;
+      expectedPoints: string[];
+      rationale: string;
+    };
 
-export default function TextQuiz({ questions }: Props) {
+type Props = {
+  studySetId: string;
+  questions: QuizQuestion[];
+};
+
+export default function TextQuiz({ studySetId, questions }: Props) {
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState<string>("");
   const [revealed, setRevealed] = useState(false);
   const [score, setScore] = useState({ correct: 0, answered: 0 });
+  const startedAt = useRef<number>(Date.now());
 
   if (questions.length === 0) {
     return (
@@ -22,7 +52,7 @@ export default function TextQuiz({ questions }: Props) {
   const q = questions[index];
   const isLast = index === questions.length - 1;
 
-  const submit = () => {
+  const submit = async () => {
     if (revealed) return;
     let correct = false;
     if (q.type === "mcq") {
@@ -39,11 +69,29 @@ export default function TextQuiz({ questions }: Props) {
       correct: s.correct + (correct ? 1 : 0),
       answered: s.answered + 1,
     }));
+
+    const msToAnswer = Date.now() - startedAt.current;
+    try {
+      await fetch("/api/attempts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionId: q.id,
+          userAnswer: answer,
+          isCorrect: correct,
+          msToAnswer,
+        }),
+      });
+    } catch {
+      // Non-fatal: the UI already advanced
+    }
+    void studySetId;
   };
 
   const next = () => {
     setAnswer("");
     setRevealed(false);
+    startedAt.current = Date.now();
     if (!isLast) setIndex((i) => i + 1);
   };
 

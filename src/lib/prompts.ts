@@ -9,6 +9,25 @@ function joinSources(docs: ExtractedDoc[]): string {
     .join("\n\n");
 }
 
+export type WeaknessHint = {
+  topic: string;
+  accuracyPct: number;
+  attempts: number;
+};
+
+function formatWeaknessHints(hints: WeaknessHint[]): string {
+  if (hints.length === 0) return "";
+  const lines = hints.map(
+    (h) => `  - ${h.topic}: ${h.accuracyPct}% correct across ${h.attempts} past attempts`
+  );
+  return [
+    "",
+    "This student has struggled with these topics in past sessions:",
+    ...lines,
+    "Where the source material overlaps these topics, generate EXTRA questions probing them in depth. Use common distractors that match her historical confusions.",
+  ].join("\n");
+}
+
 export function generationSystem(): string {
   return [
     "You are an expert medical educator building study materials for a medical student.",
@@ -23,7 +42,10 @@ export function generationSystem(): string {
   ].join("\n");
 }
 
-export function generationUser(docs: ExtractedDoc[]): string {
+export function generationUser(
+  docs: ExtractedDoc[],
+  weaknessHints: WeaknessHint[] = []
+): string {
   const schema = `{
   "mindMapMarkdown": string,  // Indented markdown outline, e.g. "# Topic\\n## Subtopic\\n- Point"
   "quizQuestions": Array<
@@ -62,10 +84,53 @@ export function generationUser(docs: ExtractedDoc[]): string {
     "  - Each leaf should be short (under ~10 words) — the mind map is a visual, not a summary.",
     "",
     voicePromptGuidance,
+    formatWeaknessHints(weaknessHints),
     "",
     `Return JSON matching this TypeScript schema exactly:\n${schema}`,
     "",
     "=== SOURCE MATERIAL ===",
     joinSources(docs),
+  ].join("\n");
+}
+
+export function drillSystem(): string {
+  return [
+    "You are an expert medical educator building a focused drill of multiple-choice questions on topics the student has struggled with.",
+    "Return ONLY valid JSON. No prose, no backticks, no commentary.",
+    "Be clinically precise. Do not invent facts outside the source material.",
+  ].join("\n");
+}
+
+export function drillUser(
+  sourceText: string,
+  sourceTitle: string,
+  weakTopics: string[],
+  questionCount: number = 8
+): string {
+  const schema = `{
+  "questions": Array<{
+    "type": "mcq",
+    "stem": string,
+    "choices": [{"label": "A", "text": string}, ...],
+    "correctLabel": "A"|"B"|"C"|"D",
+    "rationale": string,
+    "topic": string
+  }>
+}`;
+  return [
+    `Generate exactly ${questionCount} multiple-choice questions focused on these topics where the student has struggled:`,
+    ...weakTopics.map((t) => `  - ${t}`),
+    "",
+    "Rules:",
+    "  - All questions must be MCQ with exactly 4 plausible choices.",
+    "  - Distractors should reflect common confusions for each topic (e.g., peaked T waves vs. U waves for ECG questions).",
+    "  - Rationales explain WHY the correct answer is right AND why the most tempting wrong answer is wrong.",
+    "  - Pull content strictly from the source material below.",
+    "  - Set the topic field to one of the listed weak topics where relevant.",
+    "",
+    `Return JSON matching this schema exactly:\n${schema}`,
+    "",
+    `=== SOURCE MATERIAL (${sourceTitle}) ===`,
+    sourceText,
   ].join("\n");
 }

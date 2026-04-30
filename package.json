@@ -11,20 +11,26 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "@elevenlabs/react": "^1.2.1",
+    "@paralleldrive/cuid2": "^3.3.0",
+    "better-sqlite3": "^12.9.0",
+    "drizzle-orm": "^0.45.2",
     "mammoth": "^1.12.0",
     "markmap-lib": "^0.18.12",
     "markmap-view": "^0.18.12",
     "next": "16.2.4",
     "pdf-parse": "^2.4.5",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "resend": "^6.12.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
