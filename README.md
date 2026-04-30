@@ -1,56 +1,100 @@
 # MedQuiz
 
-A voice-first study companion for medical students. Upload chapter notes, get a mind map, a text quiz, and a natural-conversation voice tutor powered by Claude and ElevenLabs.
+> Paste your chapter notes. Get a mind map, a quiz, and a voice tutor that actually listens.
+
+**Live app:** https://tat.4mn.org
+**Marketing page:** https://ben4mn.github.io/MedQuiz/
+
+MedQuiz is a voice-first study companion for medical students, built to solve a specific problem: ChatGPT voice was robotic and just parroted answers back instead of judging them. So we combined Claude (for reasoning) with ElevenLabs (for voice quality) and wrapped it in a Next.js app that can be used on any phone or laptop.
+
+## Features
+
+- **Paste or upload** — paste a chapter as text, or upload up to 3 `.docx` / `.pdf` files
+- **Interactive mind map** — the chapter's structure as a radial tree, pinch-zoom on mobile
+- **Mixed-format quiz** — multiple choice, short answer, free recall, each with a rationale
+- **Natural voice tutor** — WebRTC mic, barge-in, turn-taking, real conversation flow
+- **Context-aware reasoning** — the tutor knows your source material and judges answers on understanding, not keyword match
+
+## Architecture
+
+```
+Browser ──paste/upload──▶ /api/paste or /api/upload ──▶ session store
+                                                │
+Browser ──click Start───▶ /api/generate ─(Claude Sonnet 4.6)──▶ mind map + quiz + voice prompt
+                                                │
+Browser ◀───────────── /study (3 tabs: mind map / text quiz / voice quiz)
+
+Voice tab:
+Browser ──/api/voice-token──▶ ElevenLabs (signed WebRTC token)
+Browser ◀──────WebRTC audio──▶ ElevenLabs agent (STT + TTS + turn-taking)
+                                  │
+                                  ▼
+                       /api/voice-llm (OpenAI-compatible SSE bridge)
+                                  │
+                                  ▼
+                            Anthropic Messages API (streaming)
+```
+
+**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind v4 · Anthropic SDK · ElevenLabs React SDK · mammoth + pdf-parse · markmap
 
 ## Local development
 
 ```bash
+git clone https://github.com/ben4mn/MedQuiz.git
+cd MedQuiz
 npm install
+cp .env.example .env.local    # then fill in real values
 npm run dev
-# http://localhost:3000
 ```
 
-The app uses two third-party services:
+Visit http://localhost:3000.
 
-- **Anthropic** (Claude) for content generation and as the "brain" behind the voice tutor.
-- **ElevenLabs Conversational AI** for microphone capture, STT, voice activity detection, turn-taking, barge-in, and TTS.
+### Required environment variables
 
-Set keys in `.env.local` (git-ignored):
+| Variable | Where to get it |
+|---|---|
+| `ANTHROPIC_API_KEY` | https://console.anthropic.com |
+| `ELEVENLABS_API_KEY` | https://elevenlabs.io (account settings) |
+| `ELEVENLABS_AGENT_ID` | Created during the one-time ElevenLabs agent setup below |
 
-```
-ANTHROPIC_API_KEY=sk-ant-...
-ELEVENLABS_API_KEY=sk_...
-ELEVENLABS_AGENT_ID=   # filled in after you create the agent, see below
-```
+### One-time ElevenLabs agent setup
 
-## One-time ElevenLabs agent setup
-
-The voice quiz uses a Conversational AI agent configured with Claude as its "custom LLM". Do this once:
+The voice quiz uses a Conversational AI agent configured with Claude as its custom LLM. Create this once:
 
 1. Go to https://elevenlabs.io/app/conversational-ai/agents and create a new agent.
 2. In the agent settings:
-   - **LLM**: choose **Custom LLM**.
-   - **Server URL**: the base URL of this app. For local dev, you'll need a public tunnel (see below). Set this to `https://<tunnel>.trycloudflare.com/api/voice-llm`.
-   - **Model ID**: anything — e.g. `medquiz-claude`. It's passed through but not used.
-   - **API key**: anything non-empty — the route doesn't validate it in dev.
-3. Pick a **voice** (Aria, Sarah, and Charlotte are good warm choices) and output format.
-4. In the **Security** tab, enable override for **System Prompt** and **First Message** — required so the per-session tutor prompt and greeting can be injected.
-5. Copy the agent ID into `ELEVENLABS_AGENT_ID` in `.env.local`. Restart `npm run dev`.
+   - **LLM**: Custom LLM
+   - **Server URL**: your app's base URL + `/api/voice-llm`. For local dev, you'll need a public tunnel — e.g. `https://yourtunnel.example.com/api/voice-llm`
+   - **Model ID**: anything, e.g. `medquiz-claude` (not used)
+   - **API key**: anything non-empty (not validated in dev)
+3. Pick a warm voice (Aria, Sarah, and Charlotte are good choices).
+4. **Security tab**: enable override for **System Prompt** and **First Message**. Required — without these, per-session tutor prompts are silently dropped.
+5. Copy the agent ID into `ELEVENLABS_AGENT_ID` in `.env.local`.
 
-## Running the voice quiz locally
+### Making voice work locally
 
-ElevenLabs agents can only reach a publicly-resolvable URL, so you need a tunnel:
+ElevenLabs agents need a publicly-resolvable URL to reach your Custom LLM. Use Cloudflare Tunnel:
 
 ```bash
 cloudflared tunnel --url http://localhost:3000
-# note the https://*.trycloudflare.com URL it prints
 ```
 
-Update the agent's "Server URL" in the ElevenLabs dashboard to point at that tunnel + `/api/voice-llm`.
+Copy the generated `*.trycloudflare.com` URL into the agent's Server URL setting.
 
-## Production (Expedia network) note
+## Production mode
 
-Node 24's bundled root CA list is missing GlobalSign Root CA and GTS Root R4, which makes HTTPS calls to `api.anthropic.com` fail with "Connection error." A local `certs.pem` is generated from the macOS keychain and loaded via `NODE_EXTRA_CA_CERTS` in the npm scripts. To regenerate:
+Turbopack's dev-mode HMR uses a WebSocket, which Cloudflare's proxy doesn't always route cleanly. For anything shared over a tunnel, run the production build:
+
+```bash
+npm run build
+npm run start
+```
+
+## Node 24 CA workaround
+
+Node 24's bundled root CA list is missing GlobalSign Root CA and GTS Root R4, which breaks HTTPS calls to `api.anthropic.com` with `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`. The repo's npm scripts load a local `certs.pem` via `NODE_EXTRA_CA_CERTS`.
+
+On a Mac, regenerate the bundle from your system keychain:
 
 ```bash
 {
@@ -58,32 +102,44 @@ Node 24's bundled root CA list is missing GlobalSign Root CA and GTS Root R4, wh
   security find-certificate -c "GTS Root R4" -a -p /System/Library/Keychains/SystemRootCertificates.keychain
   security find-certificate -c "ISRG Root X1" -a -p /System/Library/Keychains/SystemRootCertificates.keychain
   security find-certificate -c "ISRG Root X2" -a -p /System/Library/Keychains/SystemRootCertificates.keychain
-  security find-certificate -c "Starfield" -a -p /System/Library/Keychains/SystemRootCertificates.keychain
-  security find-certificate -c "Amazon" -a -p /System/Library/Keychains/SystemRootCertificates.keychain
 } > certs.pem
 ```
 
-## Architecture
+`certs.pem` is gitignored.
+
+## Project structure
 
 ```
-Browser ────uploads docs────▶ /api/upload ──(mammoth/pdf-parse)──▶ session store
-                                                    │
-Browser ────click Start─────▶ /api/generate ─(Claude Sonnet 4.6)──▶ mind map + quiz + voice prompt
-                                                    │
-Browser ◀────────────────── study page (3 tabs: mind map / text quiz / voice quiz)
-
-Voice tab:
-Browser ──/api/voice-token──▶ ElevenLabs (get WebRTC conversation token)
-Browser ◀─────WebRTC audio──▶ ElevenLabs agent (STT + TTS + VAD + turn-taking)
-                                  │
-                                  ▼
-                       /api/voice-llm (OpenAI-compatible SSE endpoint)
-                                  │
-                                  ▼
-                            Anthropic Messages API (streaming)
+src/
+├── app/
+│   ├── layout.tsx, page.tsx, globals.css
+│   ├── study/page.tsx            — three-tab study view
+│   └── api/
+│       ├── upload/route.ts       — .docx/.pdf → text
+│       ├── paste/route.ts        — raw text → session
+│       ├── generate/route.ts     — Claude builds mind map + quiz + agent prompt
+│       ├── voice-token/route.ts  — fetches ElevenLabs WebRTC token
+│       └── voice-llm/route.ts    — OpenAI-compatible SSE proxy to Anthropic
+├── components/
+│   ├── FileDropzone.tsx          — drag/drop with iOS-safe label+input
+│   ├── MindMap.tsx               — markmap SVG wrapper
+│   ├── TextQuiz.tsx              — one-question-at-a-time card
+│   └── VoiceQuiz.tsx             — WebRTC mic UI + live transcript
+└── lib/
+    ├── types.ts                  — shared types
+    ├── sessionStore.ts           — in-memory session store
+    ├── parsers.ts                — docx/pdf extraction
+    ├── anthropic.ts              — SDK client factory
+    ├── openai-to-anthropic.ts    — OpenAI chat-completions ↔ Anthropic Messages
+    └── prompts.ts                — generation system/user prompts
 ```
 
 ## Known limitations
 
-- Sessions are stored in server memory; restart loses content. Fine for personal use.
-- No auth. Any visitor with the tunnel URL could use the app. Add basic auth before sharing widely.
+- Sessions live in server memory; restart clears them. Fine for single-user; add Postgres or SQLite for multi-user.
+- No auth. Put basic auth or Cloudflare Access in front before sharing broadly.
+- Mic permissions: some in-app browsers (Instagram DMs, Slack) don't support `getUserMedia`. Users need a full browser tab.
+
+## License
+
+MIT

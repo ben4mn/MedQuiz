@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MedQuiz — your AI study companion</title>
+  <meta name="description" content="Turn your medical school chapter notes into a mind map, a quiz, and a natural-voice tutor. Built with Claude and ElevenLabs.">
+  <meta property="og:title" content="MedQuiz — AI study companion for medical students">
+  <meta property="og:description" content="Upload your notes. Get a mind map, a quiz, and a voice tutor that actually listens.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://ben4mn.github.io/MedQuiz/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf7f2;
+      --fg: #1a1d24;
+      --muted: #6b7280;
+      --accent: #1e6f5c;
+      --accent-dark: #155044;
+      --accent-soft: #d7ebe4;
+      --card: #ffffff;
+      --border: #e5e5e5;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3 {
+      font-family: 'Lora', Georgia, serif;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-dark); }
+
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Nav */
+    nav {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      font-family: 'Lora', serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .logo span { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+    .nav-links a {
+      color: var(--fg);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .nav-links a:hover { color: var(--accent); }
+
+    /* Hero */
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 64px);
+      letter-spacing: -0.01em;
+      margin-bottom: 20px;
+    }
+    .hero h1 .accent { color: var(--accent); }
+    .hero p.lede {
+      font-size: clamp(17px, 2vw, 20px);
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 36px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 16px;
+      transition: all 150ms ease;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: var(--accent-dark);
+      color: white;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(30, 111, 92, 0.2);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--border);
+      margin-left: 12px;
+    }
+    .btn-secondary:hover { background: var(--card); color: var(--fg); }
+    .hero-cta { margin-bottom: 12px; }
+    .hero-note {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* Feature cards */
+    section.features {
+      padding: 60px 0 40px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: all 200ms ease;
+    }
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.04);
+    }
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    .card p {
+      font-size: 15px;
+      color: var(--muted);
+    }
+
+    /* How it works */
+    section.how {
+      padding: 80px 0;
+    }
+    .section-head {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .section-head h2 {
+      font-size: clamp(28px, 4vw, 38px);
+      margin-bottom: 12px;
+    }
+    .section-head p {
+      color: var(--muted);
+      max-width: 540px;
+      margin: 0 auto;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      position: relative;
+    }
+    @media (max-width: 768px) {
+      .steps { grid-template-columns: 1fr; gap: 24px; }
+    }
+    .step {
+      text-align: center;
+      padding: 0 20px;
+      position: relative;
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-family: 'Lora', serif;
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+    .step h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .step p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* Why / Built with */
+    section.why {
+      padding: 80px 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .why-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+    @media (max-width: 768px) {
+      .why-grid { grid-template-columns: 1fr; gap: 32px; }
+    }
+    .why h2 {
+      font-size: clamp(24px, 3vw, 32px);
+      margin-bottom: 16px;
+    }
+    .why p {
+      color: var(--muted);
+      margin-bottom: 16px;
+      font-size: 15px;
+    }
+    .stack-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stack-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+    }
+    .stack-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+    .stack-item strong { font-weight: 600; }
+    .stack-item span { color: var(--muted); font-size: 13px; }
+
+    /* CTA */
+    section.cta {
+      padding: 80px 0;
+      text-align: center;
+    }
+    .cta h2 {
+      font-size: clamp(28px, 4vw, 38px);
+      margin-bottom: 14px;
+    }
+    .cta p {
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+
+    /* Footer */
+    footer {
+      padding: 32px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    footer a { color: var(--muted); margin: 0 12px; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <div class="logo">Med<span>Quiz</span></div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="https://github.com/ben4mn/MedQuiz" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <h1>Your chapter notes,<br>a voice tutor that <span class="accent">actually listens</span>.</h1>
+    <p class="lede">Paste a chapter. Get an interactive mind map, a real quiz, and a natural-voice tutor that judges your answers — no buttons to push.</p>
+    <div class="hero-cta">
+      <a href="https://tat.4mn.org" class="btn btn-primary" target="_blank" rel="noopener">Try it live</a>
+      <a href="https://github.com/ben4mn/MedQuiz" class="btn btn-secondary" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+    <p class="hero-note">Built for a med student who was tired of ChatGPT's voice parroting her answers.</p>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="container">
+    <div class="features-grid">
+
+      <div class="card">
+        <div class="card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <circle cx="5" cy="6" r="2"/>
+            <circle cx="19" cy="6" r="2"/>
+            <circle cx="5" cy="18" r="2"/>
+            <circle cx="19" cy="18" r="2"/>
+            <line x1="7" y1="7" x2="10.5" y2="10.5"/>
+            <line x1="17" y1="7" x2="13.5" y2="10.5"/>
+            <line x1="7" y1="17" x2="10.5" y2="13.5"/>
+            <line x1="17" y1="17" x2="13.5" y2="13.5"/>
+          </svg>
+        </div>
+        <h3>Interactive mind map</h3>
+        <p>See your chapter's structure at a glance. Zoom, pan, expand branches. Great for the day before a test when you need to know what you don't know.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+        </div>
+        <h3>Proper quizzes, not flashcards</h3>
+        <p>Mix of multiple choice, short answer, and free recall. Every question has a rationale explaining why. Targeted to what's actually in your notes.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 1 0 6 0V5a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
+        </div>
+        <h3>Voice tutor that listens</h3>
+        <p>Talk, get quizzed, talk back. Interrupt mid-sentence. Partial credit for partial answers. Follow-ups when you miss a piece. Feels like a friendly resident on rounds.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="container">
+    <div class="section-head">
+      <h2>How it works</h2>
+      <p>From a wall of notes to a voice session in under a minute.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Paste your notes</h3>
+        <p>Open your chapter document. Select all, copy, paste. No file pickers, no friction.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Claude reads it</h3>
+        <p>Claude Sonnet 4.6 generates a mind map, 15–25 quiz questions, and a custom tutor persona — all from your source material.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Study out loud</h3>
+        <p>Tap the mic. Your tutor greets you and asks the first question. Talk naturally. The whole session feels like a conversation, not a form.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="why">
+  <div class="container">
+    <div class="why-grid">
+      <div>
+        <h2>Why this exists</h2>
+        <p>My sister-in-law is in medical school. She was using ChatGPT voice to quiz herself on chapter notes and hated it — the voice was robotic, and worse, it just parroted her answers back instead of actually evaluating them.</p>
+        <p>So we built her this. The voice quality comes from ElevenLabs' best-in-class TTS. The reasoning comes from Claude. The experience comes from not cutting corners.</p>
+      </div>
+      <div>
+        <h3 style="font-size: 18px; margin-bottom: 18px;">Built with</h3>
+        <ul class="stack-list">
+          <li class="stack-item">
+            <span class="stack-dot"></span>
+            <div><strong>Claude Sonnet 4.6</strong><br><span>Generation and reasoning</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="stack-dot"></span>
+            <div><strong>ElevenLabs</strong><br><span>Voice + turn-taking</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="stack-dot"></span>
+            <div><strong>Next.js 16</strong><br><span>App Router + API routes</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="stack-dot"></span>
+            <div><strong>Markmap</strong><br><span>Interactive mind maps</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="stack-dot"></span>
+            <div><strong>Tailwind v4</strong><br><span>Styling</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="stack-dot"></span>
+            <div><strong>Cloudflare</strong><br><span>Permanent tunnel</span></div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="container">
+    <h2>Ready to study out loud?</h2>
+    <p>Paste a chapter, grab headphones, start talking.</p>
+    <a href="https://tat.4mn.org" class="btn btn-primary" target="_blank" rel="noopener">Open MedQuiz</a>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <a href="https://github.com/ben4mn/MedQuiz" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://tat.4mn.org" target="_blank" rel="noopener">Live app</a>
+    <a href="https://github.com/ben4mn/MedQuiz/blob/main/README.md" target="_blank" rel="noopener">Docs</a>
+  </div>
+</footer>
+
+</body>
+</html>
